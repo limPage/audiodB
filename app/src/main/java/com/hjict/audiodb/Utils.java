@@ -127,4 +127,47 @@ public class Utils {
         header[43] = (byte)((totalAudioLen >> 24) & 0xff);
         out.write(header, 0, 44);
     }
+
+
+    /// 실시간 버전
+        public static byte[] pcmToWav(byte[] pcmData, int sampleRate) {
+            int byteRate = sampleRate * 2;  // MONO, 16-bit
+            int totalDataLen = pcmData.length + 36;
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+            try {
+                out.write(new byte[]{
+                        'R', 'I', 'F', 'F',
+                        (byte) (totalDataLen & 0xff),
+                        (byte) ((totalDataLen >> 8) & 0xff),
+                        (byte) ((totalDataLen >> 16) & 0xff),
+                        (byte) ((totalDataLen >> 24) & 0xff),
+                        'W', 'A', 'V', 'E',
+                        'f', 'm', 't', ' ',
+                        16, 0, 0, 0,
+                        1, 0,
+                        1, 0,
+                        (byte) (sampleRate & 0xff),
+                        (byte) ((sampleRate >> 8) & 0xff),
+                        (byte) ((sampleRate >> 16) & 0xff),
+                        (byte) ((sampleRate >> 24) & 0xff),
+                        (byte) (byteRate & 0xff),
+                        (byte) ((byteRate >> 8) & 0xff),
+                        (byte) ((byteRate >> 16) & 0xff),
+                        (byte) ((byteRate >> 24) & 0xff),
+                        2, 0, 16, 0,
+                        'd', 'a', 't', 'a',
+                        (byte) (pcmData.length & 0xff),
+                        (byte) ((pcmData.length >> 8) & 0xff),
+                        (byte) ((pcmData.length >> 16) & 0xff),
+                        (byte) ((pcmData.length >> 24) & 0xff)
+                });
+                out.write(pcmData);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return out.toByteArray();
+        }
 }
