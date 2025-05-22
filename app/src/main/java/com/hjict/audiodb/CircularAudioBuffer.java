@@ -28,4 +28,29 @@ public class CircularAudioBuffer {
         }
         return out.toByteArray();
     }
+    public byte[] getLastNBytes(int n) {
+        int totalBytes = capacity * chunkSize;
+        if (n > totalBytes) n = totalBytes;
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream(n);
+        int numChunksToRead = (int) Math.ceil(n / (double) chunkSize);
+        int startIdx = index - numChunksToRead;
+        if (startIdx < 0) startIdx += capacity;
+
+        for (int i = 0; i < numChunksToRead; i++) {
+            int pos = (startIdx + i) % capacity;
+            out.write(chunks[pos], 0, chunkSize);
+        }
+
+        byte[] result = out.toByteArray();
+        if (result.length > n) {
+            // 잘라내기 (가장 최근 N바이트)
+            byte[] trimmed = new byte[n];
+            System.arraycopy(result, result.length - n, trimmed, 0, n);
+            return trimmed;
+        }
+
+        return result;
+    }
+
 }

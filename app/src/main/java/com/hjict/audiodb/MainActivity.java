@@ -1,8 +1,11 @@
 package com.hjict.audiodb;
 
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.Manifest;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -14,6 +17,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.d("MainActivity", "onCreate");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1000);
+            }
+        }
 //        startService(new Intent(this, SoundDetectionService.class));
 //        startForegroundService(new Intent(this, SoundDetectionService.class));
 

@@ -59,6 +59,7 @@ public class SpeechSegmentRecorderWithPreBuffer {
 
             while (isRunning) {
                 int read = recorder.read(buffer, 0, buffer.length);
+                Log.e("SpeechRecorder", ""+read);
                 if (read > 0) {
                     double db = calculateDb(buffer, read);
                     long now = System.currentTimeMillis();

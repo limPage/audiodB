@@ -17,7 +17,9 @@ public class Utils {
             sum += s * s;
         }
         double rms = Math.sqrt(sum / (length / 2.0));
-        return 20 * Math.log10(rms);
+//        return 20 * Math.log10(rms);
+        return 20.0 * Math.log10(rms / 32768.0 + 1e-6);
+
     }
 
 //    public static byte[] recordWithHistory(AudioBuffer history, AudioRecord recorder, int sampleRate, int durationMs) {
