@@ -1,43 +1,58 @@
 package com.hjict.audiodb;
 
-import org.jtransforms.fft.DoubleFFT_1D;
+        import android.util.Log;
+
+        import org.jtransforms.fft.DoubleFFT_1D;
 public class FftUtils {
 
-    // PCM 데이터 → 사람이 말하는 주파수 영역 에너지 검사 (300~3000Hz)
     public static boolean isHumanVoice(byte[] pcmBytes, int sampleRate) {
-        int fftSize = 512; // 최소 256 이상 권장
+        int fftSize = 512;
         double[] audioData = new double[fftSize];
 
-        // byte[] → double[]
+        // PCM to double
         for (int i = 0; i < fftSize / 2 && i * 2 + 1 < pcmBytes.length; i++) {
-            short sample = (short) ((pcmBytes[i * 2 + 1] << 8) | (pcmBytes[i * 2] & 0xFF));
-            audioData[i] = sample / 32768.0;
+            short s = (short) ((pcmBytes[i * 2 + 1] << 8) | (pcmBytes[i * 2] & 0xFF));
+            audioData[i] = s / 32768.0;
+        }
+        for (int i = pcmBytes.length / 2; i < fftSize; i++) audioData[i] = 0;
+
+        // Hamming window
+        for (int i = 0; i < fftSize; i++) {
+            audioData[i] *= (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (fftSize - 1)));
         }
 
-        // zero-padding
-        for (int i = pcmBytes.length / 2; i < fftSize; i++) {
-            audioData[i] = 0;
-        }
-
-        // 실수 FFT 실행
+        // FFT
         DoubleFFT_1D fft = new DoubleFFT_1D(fftSize);
-        fft.realForward(audioData); // in-place
+        fft.realForward(audioData);
 
-        // 주파수 bin 단위 계산
-        double freqResolution = sampleRate / (double) fftSize;
+        double freqRes = sampleRate / (double) fftSize;
+        int low = (int) (300 / freqRes);
+        int high = (int) (3000 / freqRes);
 
-        // 주파수 구간 선택 (300~3000Hz)
-        int lowIndex = (int) (300 / freqResolution);
-        int highIndex = (int) (3000 / freqResolution);
-
-        double energy = 0.0;
-        for (int i = lowIndex; i <= highIndex; i++) {
-            double real = audioData[2 * i];
-            double imag = audioData[2 * i + 1];
-            energy += real * real + imag * imag;
+        double voiceEnergy = 0.0, totalEnergy = 0.0;
+        for (int i = 0; i < fftSize / 2; i++) {
+            double re = audioData[2 * i];
+            double im = audioData[2 * i + 1];
+            double mag2 = re * re + im * im;
+            totalEnergy += mag2;
+            if (i >= low && i <= high) voiceEnergy += mag2;
         }
 
-        // 에너지 기준값 설정 (조절 가능)
-        return energy > 5.0; // 실험적으로 threshold 조정 필요
+        double ratio = voiceEnergy / (totalEnergy + 1e-9);
+        double voiceDb = 10 * Math.log10(voiceEnergy + 1e-10);
+
+//        Log.d("fft", String.format("ratio=%.3f, voiceDb=%.2f dB", ratio, voiceDb));
+
+        return ratio >= 0.6 && voiceDb >= 12;
+
+// 예시
+//         |     상황       | ratio  | voiceDb |       판단      |
+//         |  조용한 백색소음|  0.45  |  -6db   |  너무 작음 x     |
+//         |  사람이 속삭임  | 0/60   |  12dB   | 조건 완화 시 가능 |
+//         |  보통 말하기    | 0.75   |  28 db  | 적격 o           |
+//         |  음악 or 라디오 | 0.25   |  35 dB  | 음역대가 다름 x   |
+
     }
+
+
 }
