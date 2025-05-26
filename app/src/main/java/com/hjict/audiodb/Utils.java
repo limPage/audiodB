@@ -8,6 +8,7 @@ import android.os.Environment;
 import android.util.Log;
 
 import java.io.*;
+import java.util.Arrays;
 
 public class Utils {
     public static double calculateDb(byte[] buffer, int length) {
@@ -133,8 +134,12 @@ public class Utils {
 
     /// 실시간 버전
         public static byte[] pcmToWav(byte[] pcmData, int sampleRate) {
-            int byteRate = sampleRate * 2;  // MONO, 16-bit
-            int totalDataLen = pcmData.length + 36;
+            int numChannels = 1;
+            int bitsPerSample = 16;
+            int byteRate = sampleRate * numChannels * bitsPerSample / 8;
+            int blockAlign = numChannels * bitsPerSample / 8;
+            int dataSize = pcmData.length;
+            int totalDataLen = dataSize + 36;
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -147,9 +152,9 @@ public class Utils {
                         (byte) ((totalDataLen >> 24) & 0xff),
                         'W', 'A', 'V', 'E',
                         'f', 'm', 't', ' ',
-                        16, 0, 0, 0,
-                        1, 0,
-                        1, 0,
+                        16, 0, 0, 0, // Subchunk1Size
+                        1, 0,       // AudioFormat = PCM
+                        (byte) numChannels, 0,
                         (byte) (sampleRate & 0xff),
                         (byte) ((sampleRate >> 8) & 0xff),
                         (byte) ((sampleRate >> 16) & 0xff),
@@ -158,12 +163,13 @@ public class Utils {
                         (byte) ((byteRate >> 8) & 0xff),
                         (byte) ((byteRate >> 16) & 0xff),
                         (byte) ((byteRate >> 24) & 0xff),
-                        2, 0, 16, 0,
+                        (byte) blockAlign, 0,
+                        (byte) bitsPerSample, 0,
                         'd', 'a', 't', 'a',
-                        (byte) (pcmData.length & 0xff),
-                        (byte) ((pcmData.length >> 8) & 0xff),
-                        (byte) ((pcmData.length >> 16) & 0xff),
-                        (byte) ((pcmData.length >> 24) & 0xff)
+                        (byte) (dataSize & 0xff),
+                        (byte) ((dataSize >> 8) & 0xff),
+                        (byte) ((dataSize >> 16) & 0xff),
+                        (byte) ((dataSize >> 24) & 0xff)
                 });
                 out.write(pcmData);
             } catch (IOException e) {
@@ -172,4 +178,17 @@ public class Utils {
 
             return out.toByteArray();
         }
+
+
+// 2025-05-26 체크 -> 녹음을 녹음 후 체크 변경했을 때 잘 인식되는지 테스트
+
+    public static byte[] readWavToPCM(File wavFile) throws IOException {
+        FileInputStream fis = new FileInputStream(wavFile);
+        byte[] allBytes = fis.readAllBytes();
+        fis.close();
+
+        // WAV 헤더 44바이트 제거
+        return Arrays.copyOfRange(allBytes, 44, allBytes.length);
+    }
+
 }

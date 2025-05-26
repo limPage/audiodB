@@ -53,4 +53,8 @@ public class CircularAudioBuffer {
         return result;
     }
 
+    public void reset() {
+        index = 0;
+    }
+
 }

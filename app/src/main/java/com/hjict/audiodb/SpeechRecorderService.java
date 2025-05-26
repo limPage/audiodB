@@ -43,6 +43,8 @@ public class SpeechRecorderService extends Service {
     private final int MIN_SPEECH_FRAMES = 100;  // 예: 100 frames = 1초 (10ms * 100)
     private final int MAX_SILENCE_FRAMES = 100; // 예: 200 frames = 2초 (10ms * 200)
 
+    WavOfflineAnalyzer isTest = new WavOfflineAnalyzer();
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Foreground 서비스용 알림 생성
@@ -91,7 +93,7 @@ public class SpeechRecorderService extends Service {
         final int FRAME_SIZE = 160; // 10ms @ 16kHz
         final long MAX_RECORDING_MS = 5000;
         final long MIN_RECORDING_MS = 3000;
-        final long SILENCE_TIMEOUT_MS = 1000;
+        final long SILENCE_TIMEOUT_MS = 2000;
 
         long recordingStartTime = 0;
         long lastSpeechTime = 0;
@@ -102,12 +104,16 @@ public class SpeechRecorderService extends Service {
         List<byte[]> fftWindow = new ArrayList<>();
 
         byte[] buffer = new byte[FRAME_SIZE * 2];
-
         while (isRunning) {
             int read = recorder.read(buffer, 0, buffer.length);
+            if (read <= 0) {
+                Log.e("Recorder", "read() failed with result = " + read);
+                restartRecorder();  // 아래 함수 참고
+                continue;
+            }
             if (read != buffer.length) continue;
 
-            preBuffer.addChunk(buffer);
+//            preBuffer.addChunk(buffer);
             fftWindow.add(buffer.clone());
             if (fftWindow.size() > 3) fftWindow.remove(0);  // 50ms sliding window
 
@@ -138,33 +144,49 @@ public class SpeechRecorderService extends Service {
                     speechBuffer.reset();
                     Log.i("Recorder", "▶ 녹음 시작");
                 }
+                lastSpeechTime = now;
+            }
 
+            if (isRecording) {
                 try {
-                    speechBuffer.write(buffer);
-                    lastSpeechTime = now;
+                    speechBuffer.write(buffer.clone());  // 무조건 저장
                 } catch (IOException e) {
                     Log.e("Recorder", "버퍼 쓰기 실패", e);
                 }
-            } else if (isRecording) {
+
                 long duration = now - recordingStartTime;
                 long silenceDuration = now - lastSpeechTime;
 
-                if (silenceDuration > SILENCE_TIMEOUT_MS && duration >= MIN_RECORDING_MS) {
-                    saveWavFile(speechBuffer.toByteArray());
-
-//                    finalizeAndSave(preBuffer, speechBuffer, duration, MAX_RECORDING_MS);
+                // 2초 경과                                //총 시작 시간이 4초 인가
+//                if (silenceDuration > SILENCE_TIMEOUT_MS && duration >= MIN_RECORDING_MS) {
+//                    saveWavFile(speechBuffer.toByteArray());
+//                    isRecording = false;
+//                    Log.i("Recorder", "■ 녹음 저장 완료");
+//                }
+                if ( silenceDuration > SILENCE_TIMEOUT_MS && duration <= MAX_RECORDING_MS){ // 5초 보다 적게 감지한 경우 5초가 되도록 앞에 이전 음성을 붙임
+                    finalizeAndSave(preBuffer, speechBuffer, duration, MAX_RECORDING_MS);
                     isRecording = false;
-                } else if (silenceDuration > SILENCE_TIMEOUT_MS) {
+                    preBuffer.reset();
+                    Log.i("Recorder", "■ 녹음 저장 완료 (pre: "+ Math.round((MAX_RECORDING_MS-duration) * 10) / 10.0 +")");
+                } else if (silenceDuration > SILENCE_TIMEOUT_MS && duration > MAX_RECORDING_MS ){
+                    finalizeAndSave(preBuffer, speechBuffer, 4000, MAX_RECORDING_MS);
                     isRecording = false;
-                    Log.i("Recorder", "■ 녹음 취소 (짧음)");
-                } else if (duration >= MAX_RECORDING_MS) {
-                    saveWavFile(speechBuffer.toByteArray());
-                    isRecording = false;
-                    Log.i("Recorder", "■ 녹음 강제종료 (5초 초과)");
+                    preBuffer.reset();
+                    Log.i("Recorder", "■ 녹음 저장 완료 (pre: 1)");
                 }
+//                else if (silenceDuration > SILENCE_TIMEOUT_MS) { // 짧게 살려주세요 한 경우 저장이 되지 않음
+//                    isRecording = false;
+//                    Log.i("Recorder", "■ 녹음 취소 (짧음)");
+//                }
+//                else if (duration >= MAX_RECORDING_MS) { // 5초가 경과 된 경우 바로 저장
+//                    saveWavFile(speechBuffer.toByteArray());
+//                    isRecording = false;
+//                    Log.i("Recorder", "■ 녹음 강제종료 (5초 초과)");
+//                }
+            } else if (!isRecording) {
+                preBuffer.addChunk(buffer);
             }
         }
-
         recorder.stop();
         recorder.release();
     }
@@ -308,6 +330,17 @@ public class SpeechRecorderService extends Service {
             fos.close();
 
             Log.d("VAD", "Saved: " + file.getAbsolutePath());
+
+
+//            isTest.analyzeWav(file);
+            // 🎯 여기서 분석
+            boolean hasVoice = isTest.hasHumanVoice(file);
+            if (hasVoice) {
+                Log.i("STT", "▶ Whisper STT 실행 대상입니다.");
+                //runWhisper(file);  // 👈 Whisper 실행 함수 연결
+            } else {
+                Log.i("STT", "⛔ 사람이 말한 내용 없음 → STT 생략됨");
+            }
         } catch (Exception e) {
             Log.e("VAD", "파일 저장 실패", e);
         }
@@ -354,10 +387,31 @@ public class SpeechRecorderService extends Service {
             finalAudio.write(prefix);
             finalAudio.write(speech);
             saveWavFile(finalAudio.toByteArray());
-            Log.i("Recorder", "■ 녹음 완료. 저장됨");
+//            Log.i("Recorder", "■ 녹음 완료. 저장됨");
         } catch (IOException e) {
             Log.e("Recorder", "저장 실패", e);
         }
     }
+
+    // 재시작하게
+    private void restartRecorder() {
+        try {
+            recorder.stop();
+            recorder.release();
+        } catch (Exception e) {
+            Log.e("Recorder", "restartRecorder 오류", e);
+        }
+
+        int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+
+        recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+
+        recorder.startRecording();
+        Log.i("Recorder", "AudioRecord 재시작 완료");
+    }
+
 
 }

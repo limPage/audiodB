@@ -43,7 +43,7 @@ public class FftUtils {
 
 //        Log.d("fft", String.format("ratio=%.3f, voiceDb=%.2f dB", ratio, voiceDb));
 
-        return ratio >= 0.6 && voiceDb >= 12;
+        return ratio >= 0.5 && voiceDb >= 8;
 
 // 예시
 //         |     상황       | ratio  | voiceDb |       판단      |
