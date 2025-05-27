@@ -14,7 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AudiodB">
         <service
-            android:name=".SoundDetectionService"
+            android:name=".VoiceRecorderService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
         <service

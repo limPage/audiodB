@@ -24,9 +24,9 @@ public class WavOfflineAnalyzer {
                 boolean isSpeech = vad.isSpeech(frame, 16000);
                 boolean isVoice = FftUtils.isHumanVoice(frame, 16000);
                 double db = Utils.calculateDb(frame, frame.length);
-                Log.e("OfflineVAD",""+isSpeech+"-"+ isVoice+"-"+db);
+//                Log.e("OfflineVAD","isSpeech:"+isSpeech+", isVoice:"+ isVoice+", dB"+(int)db);
 
-                if (isSpeech && isVoice && db > -40) {
+                if (isSpeech && isVoice && db > -35) {
                     voiceFrames++;
                 }
             }

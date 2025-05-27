@@ -31,7 +31,7 @@ public class MainActivity extends AppCompatActivity {
 //        recorder.start();
 
 // MainActivity 또는 BroadcastReceiver에서
-        startForegroundService(new Intent(this, SpeechRecorderService.class));
+        startForegroundService(new Intent(this, VoiceRecorderService.class));
 
 
     }
